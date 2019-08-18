@@ -1,8 +1,5 @@
-%matplotlib inline
 import gym
 import itertools
-import matplotlib
-from matplotlib import pyplot as plt
 import numpy as np
 import sys
 import tensorflow as tf
@@ -13,7 +10,17 @@ import pandas as pd
 import sklearn.pipeline
 import sklearn.preprocessing
 from sklearn.kernel_approximation import RBFSampler
-matplotlib.style.use('ggplot')
+from plotting import plot
+from gym import wrappers
+from policy import Policy
+from value_function import ValueFunction
+import scipy.signal
+from scaler import Scaler
+from datetime import datetime
+import os
+import argparse
+import signal
+
 
 
 
@@ -42,20 +49,21 @@ def run_episode(env, policy, scaler):
         obs = obs.astype(np.float32).reshape((1, -1))
         obs = np.append(obs, [[step]], axis=1)  # Add time step feature
         unscaled_obs.append(obs)
-        obs = scale * (obse - offset) # Center & scale observations
+        obs = scale * (obs - offset) # Center & scale observations
         observations.append(obs)
         action = policy.sample(obs).reshape((1,-1)).astype(np.float32)
         actions.append(action)
         obs, reward, done, _ = env.step(np.squeeze(action,axis = 0)) # Take an action
+        if not isinstance(reward, float):
+            reward = np.asscalar(reward)
         rewards.append(reward)
         step += 1e-3  # Increment time step feature
-
         if done:
             return (np.concatenate(observations), np.concatenate(actions),
             np.array(rewards, dtype=np.float64), np.concatenate(unscaled_obs))
 
     
-def run_policy(env, policy, scaler, episodes):
+def run_policy(env, policy, scaler, stats, episodes):
     # Run policy, collect data
     total_steps = 0
     trajectories = []
@@ -67,9 +75,10 @@ def run_policy(env, policy, scaler, episodes):
                       'rewards': rewards,
                       'unscaled_obs': unscaled_obs}
         trajectories.append(trajectory)
-        stats.episode_rewards[e] += rewards
+        stats.episode_rewards[e] = np.mean(rewards)
     unscaled = np.concatenate([t['unscaled_obs'] for t in trajectories])
     scaler.update(unscaled)  # update running statistics for scaling observations
+    print("M_Reward", np.mean([t['rewards'].sum() for t in trajectories]))
     return trajectories
 
 def discount(x, gamma):
@@ -102,10 +111,10 @@ def insert_GAE(trajectories, gamma, lamb):
         else:
             rewards = trajectory['rewards']
         values = trajectory['values']
-    # TD
-    td = rewards + np.append(gamma * values[1:],0) - values
-    advantages = discount(td, gamma * lamb)
-    trajectories['advantages'] = advantages
+        # TD
+        td = rewards + np.append(gamma * values[1:],0) - values
+        advantages = discount(td, gamma * lamb)
+        trajectory['advantages'] = advantages
 
 def create_train_set(trajectories):
     """
@@ -121,14 +130,14 @@ def create_train_set(trajectories):
 
     return observations, actions, advantages, disc_sum_rew
 
-def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, hid1_mult, policy_logvar, clipping_range):
+def main(env_name, num_episodes, gamma, lamb, kl_targ, batch_size, hid1_mult, policy_logvar, clipping_range):
     """
     Main training loop
     Args:
         env_name: OpenAI Gym environment name, e.g. 'Hopper-v1'
         num_episodes: maximum number of episodes to run
         gamma: reward discount factor (float)
-        lam: lambda from Generalized Advantage Estimate
+        lamb: lambda from Generalized Advantage Estimate
         kl_targ: D_KL target for policy update [D_KL(pi_old || pi_new)
         batch_size: number of episodes per policy training batch
         hid1_mult: hid1 size for policy and value_f (mutliplier of obs dimension)
@@ -149,13 +158,14 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, hid1_mult, pol
 
 
     # run a few episodes of untrained policy to initialize scaler:
-    run_policy(env, policy, scaler, logger, episodes=5)
+    run_policy(env, policy, scaler, stats ,episodes=5)
 
     episode = 0
     while episode < num_episodes :
-        print("Episode Num: \n", episode)
-        trajectories = run_policy(env, policy, scaler, episodes)
-        insert_value (trajectories, val_func) # Insert estimated values to episodes
+        print("Episode Num:", episode)
+        trajectories = run_policy(env, policy, scaler, stats ,episodes=batch_size)
+        episode += len(trajectories)
+        insert_value_estimate (trajectories, val_func) # Insert estimated values to episodes
         insert_disc_sum_rew(trajectories, gamma) # Calculate discounter sum of rewards
         insert_GAE(trajectories, gamma, lamb) # Calculate advantages
 
@@ -163,12 +173,13 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, hid1_mult, pol
         observations, actions, advantages, disc_sum_rew = create_train_set(trajectories)
 
         policy.update(observations, actions, advantages) # Policy update
-        val_func.fit(observes, disc_sum_rew) # Value Function update
-
-        policy.close_sess()
-        val_func.close_sess()
+        val_func.fit(observations, disc_sum_rew) # Value Function update
+        
+    policy.close_sess()
+    val_func.close_sess()
     # TODO
     # Plotting, plot method from plotting.py
+    plot(stats)
     
 
 
@@ -181,7 +192,7 @@ if __name__ == "__main__":
     parser.add_argument('-n', '--num_episodes', type=int, help='Number of episodes to run',
                         default=1000)
     parser.add_argument('-g', '--gamma', type=float, help='Discount factor', default=0.995)
-    parser.add_argument('-l', '--lam', type=float, help='Lambda for Generalized Advantage Estimation',
+    parser.add_argument('-l', '--lamb', type=float, help='Lambda for Generalized Advantage Estimation',
                         default=0.98)
     parser.add_argument('-k', '--kl_targ', type=float, help='D_KL target value',
                         default=0.003)

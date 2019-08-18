@@ -30,8 +30,8 @@ class ValueFunction(object):
         # Construct TensorFlow graph
         self.g = tf.Graph()
         with self.g.as_default():
-            self.state = tf.placeholder(tf.float32, shape = (None, self.obs_dim), Name= "state_valfunc")
-            self.value = tf.placeholder(tf.float32, shape = (None,), Name = "val_valfunc")
+            self.state = tf.placeholder(tf.float32, shape = (None, self.obs_dim), name= "state_valfunc")
+            self.value = tf.placeholder(tf.float32, shape = (None,), name = "val_valfunc")
 
             """
                 hid1 size = observation dimensions x 10
@@ -42,10 +42,10 @@ class ValueFunction(object):
             hid3_size = 5
             hid2_size = int(np.sqrt(hid1_size * hid3_size))
 
-            self.learning_rate = 1e-2 / np.sqrt(hid2_size) # 1e-3 empirically determined
+            self.learning_rate = 1e-2 / np.sqrt(hid2_size) # 1e-2 empirically determined
             
             # Place tanh activation function for 3 hidden layers
-             out = tf.layers.dense(self.state, hid1_size, tf.tanh,
+            out = tf.layers.dense(self.state, hid1_size, tf.tanh,
                                   kernel_initializer=tf.random_normal_initializer(
                                       stddev=np.sqrt(1 / self.obs_dim)), name="h1")
             out = tf.layers.dense(out, hid2_size, tf.tanh,
@@ -58,7 +58,7 @@ class ValueFunction(object):
                                   kernel_initializer=tf.random_normal_initializer(
                                       stddev=np.sqrt(1 / hid3_size)), name='output')
             self.out = tf.squeeze(out)
-            self.loss = tf.reduce_mean(tf.square(self.out - self.val_ph))  # squared loss
+            self.loss = tf.reduce_mean(tf.square(self.out - self.value))  # squared loss
             optimizer = tf.train.AdamOptimizer(self.learning_rate)
             self.train_op = optimizer.minimize(self.loss)
             self.init = tf.global_variables_initializer()
@@ -88,8 +88,8 @@ class ValueFunction(object):
             for j in range(num_batches):
                 start = j * batch_size
                 end = (j + 1) * batch_size
-                feed_dict = {self.obs_ph: x_train[start:end, :],
-                             self.val_ph: y_train[start:end]}
+                feed_dict = {self.state: x_train[start:end, :],
+                             self.value: y_train[start:end]}
                 _, l = self.sess.run([self.train_op, self.loss], feed_dict=feed_dict)
         y_hat = self.predict(x)
         loss = np.mean(np.square(y_hat - y))         # Explained variance after update
@@ -97,7 +97,7 @@ class ValueFunction(object):
 
     def predict(self, x):
         # Predict method
-        feed_dict = {self.obs_ph: x}
+        feed_dict = {self.state: x}
         y_hat = self.sess.run(self.out, feed_dict=feed_dict)
 
         return np.squeeze(y_hat)

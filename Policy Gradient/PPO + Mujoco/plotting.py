@@ -3,11 +3,13 @@ import matplotlib
 from matplotlib import pyplot as plt
 import time
 import pandas as pd
+import numpy as np
 matplotlib.style.use('ggplot')
 
 
+
 def plot(stats):
-    smoothing_window = 100
+    smoothing_window = 25
     episode_lengths = stats[0][0]
     episode_rewards = stats[0][1]
     fig1 = plt.figure(figsize=(10,5))
