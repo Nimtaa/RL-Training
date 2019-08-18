@@ -9,9 +9,10 @@ matplotlib.style.use('ggplot')
 
 
 def plot(stats):
-    smoothing_window = 25
-    episode_lengths = stats[0][0]
-    episode_rewards = stats[0][1]
+    print(stats)
+    smoothing_window = 1
+    episode_lengths = stats.episode_lengths
+    episode_rewards = stats.episode_rewards
     fig1 = plt.figure(figsize=(10,5))
     plt.plot(episode_lengths)
     plt.xlabel("Episode")

@@ -63,7 +63,7 @@ def run_episode(env, policy, scaler):
             np.array(rewards, dtype=np.float64), np.concatenate(unscaled_obs))
 
     
-def run_policy(env, policy, scaler, stats, episodes):
+def run_policy(env, policy, scaler, stats, episodes, index):
     # Run policy, collect data
     total_steps = 0
     trajectories = []
@@ -75,10 +75,12 @@ def run_policy(env, policy, scaler, stats, episodes):
                       'rewards': rewards,
                       'unscaled_obs': unscaled_obs}
         trajectories.append(trajectory)
-        stats.episode_rewards[e] = np.mean(rewards)
     unscaled = np.concatenate([t['unscaled_obs'] for t in trajectories])
     scaler.update(unscaled)  # update running statistics for scaling observations
-    print("M_Reward", np.mean([t['rewards'].sum() for t in trajectories]))
+    mean_reward = np.mean([t['rewards'].sum() for t in trajectories])
+    print("M_Reward", mean_reward)
+    stats.episode_rewards[index] = mean_reward
+    
     return trajectories
 
 def discount(x, gamma):
@@ -158,12 +160,14 @@ def main(env_name, num_episodes, gamma, lamb, kl_targ, batch_size, hid1_mult, po
 
 
     # run a few episodes of untrained policy to initialize scaler:
-    run_policy(env, policy, scaler, stats ,episodes=5)
+    run_policy(env, policy, scaler, stats , episodes=5, index= 0)
 
     episode = 0
+    counter = 0
     while episode < num_episodes :
         print("Episode Num:", episode)
-        trajectories = run_policy(env, policy, scaler, stats ,episodes=batch_size)
+        trajectories = run_policy(env, policy, scaler, stats ,episodes=batch_size, index = counter)
+        counter +=1
         episode += len(trajectories)
         insert_value_estimate (trajectories, val_func) # Insert estimated values to episodes
         insert_disc_sum_rew(trajectories, gamma) # Calculate discounter sum of rewards
