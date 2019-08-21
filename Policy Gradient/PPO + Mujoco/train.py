@@ -64,7 +64,7 @@ def run_episode(env, policy, scaler):
 
     
 def run_policy(env, policy, scaler, stats, episodes, index):
-    # Run policy, collect data
+    # Run policy and collect data
     total_steps = 0
     trajectories = []
     for e in range(episodes):
@@ -78,7 +78,7 @@ def run_policy(env, policy, scaler, stats, episodes, index):
     unscaled = np.concatenate([t['unscaled_obs'] for t in trajectories])
     scaler.update(unscaled)  # update running statistics for scaling observations
     mean_reward = np.mean([t['rewards'].sum() for t in trajectories])
-    print("M_Reward", mean_reward)
+    print("Mean Reward", mean_reward)
     stats.episode_rewards[index] = mean_reward
     
     return trajectories
@@ -90,7 +90,6 @@ def discount(x, gamma):
 
 def insert_disc_sum_rew(trajectories, gamma):
     # Inserts discounted sum of rewards to all time steps of all trajectories
-    
     for trajectory in trajectories:
         if gamma < 0.999:  # Don't scale for gamma ~= 1
             rewards = trajectory['rewards'] * (1 - gamma)

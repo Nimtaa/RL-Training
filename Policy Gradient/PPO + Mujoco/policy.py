@@ -88,8 +88,8 @@ class Policy (object):
                                    tf.constant_initializer(0.0))
         self.log_vars = tf.reduce_sum(log_vars, axis=0) + self.policy_logvar
 
-        print('Policy Params -- h1: {}, h2: {}, h3: {}, learning_rate: {:.3g}, logvar_speed: {}'
-              .format(hid1_size, hid2_size, hid3_size, self.learning_rate, logvar_speed))
+        print('Policy neural network params -- layer1: {}, layer2: {}, layer3: {}, learning_rate: {:.3g}
+              .format(hid1_size, hid2_size, hid3_size, self.learning_rate))
 
         
     def _logprob(self):
@@ -131,7 +131,6 @@ class Policy (object):
                         tf.random_normal(shape=(self.act_dim,)))
 
     def _loss_train_op(self):  
-        print('setting up loss with clipping objective')
         pg_ratio = tf.exp(self.logp - self.logp_old)
         clipped_pg_ratio = tf.clip_by_value(pg_ratio, 1 - self.clipping_range[0], 1 + self.clipping_range[1])
         surrogate_loss = tf.minimum(self.advantages* pg_ratio,
@@ -150,13 +149,6 @@ class Policy (object):
         return self.sess.run(self.sampled_act, feed_dict=feed_dict)
 
     def update(self, observes, actions, advantages):
-        """ Update policy based on observations, actions and advantages
-
-        Args:
-            observes: observations, shape = (N, obs_dim)
-            actions: actions, shape = (N, act_dim)
-            advantages: advantages, shape = (N,)
-        """
         feed_dict = {self.state: observes,
                      self.action: actions,
                      self.advantages: advantages,
@@ -171,14 +163,14 @@ class Policy (object):
         for e in range(self.epochs):
             self.sess.run(self.train_op, feed_dict)
             loss, kl, entropy = self.sess.run([self.loss, self.kl, self.entropy], feed_dict)
-            if kl > self.kl_targ * 4:  # early stopping if D_KL diverges badly
+            if kl > self.kl_targ * 4:  # Early stopping if D_KL diverges badly
                 break
-        if kl > self.kl_targ * 2:  # servo beta to reach D_KL target
-            self.beta = np.minimum(35, 1.5 * self.beta)  # max clip beta
+        if kl > self.kl_targ * 2: 
+            self.beta = np.minimum(35, 1.5 * self.beta)  # Clip beta
             if self.beta > 30 and self.learning_rate_mult > 0.1:     
                 self.learning_rate_mult /= 1.5
         elif kl < self.kl_targ / 2:
-            self.beta = np.maximum(1 / 35, self.beta / 1.5)  # min clip beta
+            self.beta = np.maximum(1 / 35, self.beta / 1.5)  # Clip beta
             if self.beta < (1 / 30) and self.learning_rate_mult < 10:
                 self.learning_rate_mult *= 1.5
 
