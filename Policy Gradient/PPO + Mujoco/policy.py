@@ -131,20 +131,12 @@ class Policy (object):
                         tf.random_normal(shape=(self.act_dim,)))
 
     def _loss_train_op(self):  
-        if self.clipping_range is not None:
-            print('setting up loss with clipping objective')
-            pg_ratio = tf.exp(self.logp - self.logp_old)
-            clipped_pg_ratio = tf.clip_by_value(pg_ratio, 1 - self.clipping_range[0], 1 + self.clipping_range[1])
-            surrogate_loss = tf.minimum(self.advantages* pg_ratio,
-                                        self.advantages * clipped_pg_ratio)
-            self.loss = -tf.reduce_mean(surrogate_loss)
-        else:
-            print('setting up loss with KL penalty')
-            loss1 = -tf.reduce_mean(self.advantages*
-                                    tf.exp(self.logp - self.logp_old))
-            loss2 = tf.reduce_mean(self.beta_ph * self.kl)
-            loss3 = self.eta_ph * tf.square(tf.maximum(0.0, self.kl - 2.0 * self.kl_targ))
-            self.loss = loss1 + loss2 + loss3
+        print('setting up loss with clipping objective')
+        pg_ratio = tf.exp(self.logp - self.logp_old)
+        clipped_pg_ratio = tf.clip_by_value(pg_ratio, 1 - self.clipping_range[0], 1 + self.clipping_range[1])
+        surrogate_loss = tf.minimum(self.advantages* pg_ratio,
+                                    self.advantages * clipped_pg_ratio)
+        self.loss = -tf.reduce_mean(surrogate_loss)
         optimizer = tf.train.AdamOptimizer(self.learning_rate_ph)
         self.train_op = optimizer.minimize(self.loss)
     
