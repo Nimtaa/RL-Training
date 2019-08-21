@@ -30,8 +30,8 @@ class ValueFunction(object):
         # Construct TensorFlow graph
         self.g = tf.Graph()
         with self.g.as_default():
-            self.state = tf.placeholder(tf.float32, shape = (None, self.obs_dim), name= "state_valfunc")
-            self.value = tf.placeholder(tf.float32, shape = (None,), name = "val_valfunc")
+            self.state = tf.placeholder(tf.float32,  (None, self.obs_dim), "state_valfunc")
+            self.value = tf.placeholder(tf.float32, (None,), "val_valfunc")
 
             """
                 hid1 size = observation dimensions x 10

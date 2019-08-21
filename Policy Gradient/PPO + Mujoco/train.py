@@ -90,7 +90,7 @@ def discount(x, gamma):
 
 def insert_disc_sum_rew(trajectories, gamma):
     # Inserts discounted sum of rewards to all time steps of all trajectories
-
+    
     for trajectory in trajectories:
         if gamma < 0.999:  # Don't scale for gamma ~= 1
             rewards = trajectory['rewards'] * (1 - gamma)
@@ -181,8 +181,6 @@ def main(env_name, num_episodes, gamma, lamb, kl_targ, batch_size, hid1_mult, po
         
     policy.close_sess()
     val_func.close_sess()
-    # TODO
-    # Plotting, plot method from plotting.py
     plot(stats)
     
 

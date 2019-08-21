@@ -35,9 +35,9 @@ class Policy (object):
 
     def _placeholders(self):
         # Input placeholders
-        self.state = tf.placeholder(tf.float32, shape= (None, self.obs_dim), name ='obs')
-        self.action = tf.placeholder(tf.float32, shape= (None, self.act_dim), name ='act')
-        self.advantages = tf.placeholder(tf.float32, shape= (None,), name ='advantages')
+        self.state = tf.placeholder(tf.float32,  (None, self.obs_dim), 'obs')
+        self.action = tf.placeholder(tf.float32, (None, self.act_dim), 'act')
+        self.advantages = tf.placeholder(tf.float32, (None,), 'advantages')
 
         # Strength of D_KL loss terms
         self.beta_ph = tf.placeholder(tf.float32, (), 'beta') 
@@ -131,12 +131,20 @@ class Policy (object):
                         tf.random_normal(shape=(self.act_dim,)))
 
     def _loss_train_op(self):  
-        print('setting up loss with clipping objective')
-        pg_ratio = tf.exp(self.logp - self.logp_old)
-        clipped_pg_ratio = tf.clip_by_value(pg_ratio, 1 - self.clipping_range[0], 1 + self.clipping_range[1])
-        surrogate_loss = tf.minimum(self.advantages * pg_ratio,
-                                    self.advantages * clipped_pg_ratio)
-        self.loss = -tf.reduce_mean(surrogate_loss)
+        if self.clipping_range is not None:
+            print('setting up loss with clipping objective')
+            pg_ratio = tf.exp(self.logp - self.logp_old)
+            clipped_pg_ratio = tf.clip_by_value(pg_ratio, 1 - self.clipping_range[0], 1 + self.clipping_range[1])
+            surrogate_loss = tf.minimum(self.advantages* pg_ratio,
+                                        self.advantages * clipped_pg_ratio)
+            self.loss = -tf.reduce_mean(surrogate_loss)
+        else:
+            print('setting up loss with KL penalty')
+            loss1 = -tf.reduce_mean(self.advantages*
+                                    tf.exp(self.logp - self.logp_old))
+            loss2 = tf.reduce_mean(self.beta_ph * self.kl)
+            loss3 = self.eta_ph * tf.square(tf.maximum(0.0, self.kl - 2.0 * self.kl_targ))
+            self.loss = loss1 + loss2 + loss3
         optimizer = tf.train.AdamOptimizer(self.learning_rate_ph)
         self.train_op = optimizer.minimize(self.loss)
     
@@ -169,12 +177,10 @@ class Policy (object):
         feed_dict[self.old_means_ph] = old_means_np
         loss, kl, entropy = 0, 0, 0
         for e in range(self.epochs):
-            # TODO: need to improve data pipeline - re-feeding data every epoch
             self.sess.run(self.train_op, feed_dict)
             loss, kl, entropy = self.sess.run([self.loss, self.kl, self.entropy], feed_dict)
             if kl > self.kl_targ * 4:  # early stopping if D_KL diverges badly
                 break
-        # TODO: too many "magic numbers" in next 8 lines of code, need to clean up
         if kl > self.kl_targ * 2:  # servo beta to reach D_KL target
             self.beta = np.minimum(35, 1.5 * self.beta)  # max clip beta
             if self.beta > 30 and self.learning_rate_mult > 0.1:     
