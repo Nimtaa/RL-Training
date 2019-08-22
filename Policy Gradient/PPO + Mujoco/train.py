@@ -22,9 +22,6 @@ import argparse
 import signal
 
 
-
-
-
 def init_gym (env_name):
     env = gym.envs.make(env_name)
     obs_dim = env.observation_space.shape[0]
@@ -43,7 +40,7 @@ def run_episode(env, policy, scaler):
     scale, offset = scaler.get()
     scale[-1] = 1.0  # Don't scale time-step feature
     offset[-1] = 0.0  # Don't offset time-step feature
-
+    timestep = 0
     for t in itertools.count():
         env.render()
         obs = obs.astype(np.float32).reshape((1, -1))
@@ -54,13 +51,14 @@ def run_episode(env, policy, scaler):
         action = policy.sample(obs).reshape((1,-1)).astype(np.float32)
         actions.append(action)
         obs, reward, done, _ = env.step(np.squeeze(action,axis = 0)) # Take an action
+        timestep = t
         if not isinstance(reward, float):
             reward = np.asscalar(reward)
         rewards.append(reward)
         step += 1e-3  # Increment time step feature
         if done:
             return (np.concatenate(observations), np.concatenate(actions),
-            np.array(rewards, dtype=np.float64), np.concatenate(unscaled_obs))
+            np.array(rewards, dtype=np.float64), np.concatenate(unscaled_obs), timestep)
 
     
 def run_policy(env, policy, scaler, stats, episodes, index):
@@ -68,7 +66,7 @@ def run_policy(env, policy, scaler, stats, episodes, index):
     total_steps = 0
     trajectories = []
     for e in range(episodes):
-        observations, actions, rewards, unscaled_obs = run_episode(env, policy, scaler)
+        observations, actions, rewards, unscaled_obs, timestep = run_episode(env, policy, scaler)
         total_steps += observations.shape[0]
         trajectory = {'observations': observations,
                       'actions': actions,
@@ -80,6 +78,7 @@ def run_policy(env, policy, scaler, stats, episodes, index):
     mean_reward = np.mean([t['rewards'].sum() for t in trajectories])
     print("Mean Reward", mean_reward)
     stats.episode_rewards[index] = mean_reward
+    stats.episode_lengths[index] = timestep
     
     return trajectories
 
@@ -131,11 +130,11 @@ def create_train_set(trajectories):
 
     return observations, actions, advantages, disc_sum_rew
 
-def main(env_name, num_episodes, gamma, lamb, kl_targ, batch_size, hid1_mult, policy_logvar, clipping_range):
+def main(env_name, num_episodes, gamma=0.995, lamb=0.98, kl_targ=0.003, batch_size, hid1_mult=10, policy_logvar=1, clipping_range=[0.2,0.2]):
     """
     Main training loop
     Args:
-        env_name: OpenAI Gym environment name, e.g. 'Hopper-v1'
+        env_name: OpenAI Gym environment name
         num_episodes: maximum number of episodes to run
         gamma: reward discount factor (float)
         lamb: lambda from Generalized Advantage Estimate
@@ -192,25 +191,10 @@ if __name__ == "__main__":
     parser.add_argument('env_name', type=str, help='OpenAI Gym environment name')
     parser.add_argument('-n', '--num_episodes', type=int, help='Number of episodes to run',
                         default=1000)
-    parser.add_argument('-g', '--gamma', type=float, help='Discount factor', default=0.995)
-    parser.add_argument('-l', '--lamb', type=float, help='Lambda for Generalized Advantage Estimation',
-                        default=0.98)
-    parser.add_argument('-k', '--kl_targ', type=float, help='D_KL target value',
-                        default=0.003)
     parser.add_argument('-b', '--batch_size', type=int,
                         help='Number of episodes per training batch',
                         default=20)
-    parser.add_argument('-m', '--hid1_mult', type=int,
-                        help='Size of first hidden layer for value and policy NNs'
-                             '(integer multiplier of observation dimension)',
-                        default=10)
-    parser.add_argument('-v', '--policy_logvar', type=float,
-                        help='Initial policy log-variance (natural log of variance)',
-                        default=-1.0)
-    parser.add_argument('-c', '--clipping_range',
-                        nargs=2, type=float,
-                        help='Use clipping range objective in PPO instead of KL divergence penalty',
-                        default=None)
+
 
     args = parser.parse_args()
     main(**vars(args))

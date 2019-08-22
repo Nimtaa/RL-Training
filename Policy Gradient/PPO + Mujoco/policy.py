@@ -1,4 +1,3 @@
-
 import numpy as np
 import tensorflow as tf
 
@@ -88,8 +87,9 @@ class Policy (object):
                                    tf.constant_initializer(0.0))
         self.log_vars = tf.reduce_sum(log_vars, axis=0) + self.policy_logvar
 
-        print('Policy neural network params -- layer1: {}, layer2: {}, layer3: {}, learning_rate: {:.3g}
-              .format(hid1_size, hid2_size, hid3_size, self.learning_rate))
+        print('Policy neural network params -- layer1: ',hid1_size,
+        'layer2: ', hid2_size,
+        'layer3: ', hid3_size)
 
         
     def _logprob(self):
